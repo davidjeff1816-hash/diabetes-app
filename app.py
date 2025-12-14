@@ -2,21 +2,20 @@ import streamlit as st
 import pandas as pd
 from sklearn.linear_model import LogisticRegression
 from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import StandardScaler
+from sklearn.preprocessing import StandardScaler, LabelEncoder
 
 # -----------------------------
-# APP TITLE
+# PAGE CONFIG
 # -----------------------------
 st.set_page_config(page_title="Diabetes Prediction App")
-st.title("🩺 Diabetes Prediction using Logistic Regression")
+st.title("🩺 Diabetes Prediction App")
 
 # -----------------------------
 # LOAD DATA
 # -----------------------------
 @st.cache_data
 def load_data():
-    df = pd.read_excel("diabetes (1).xlsx")
-    return df
+    return pd.read_excel("diabetes (1).xlsx")
 
 df = load_data()
 
@@ -24,30 +23,38 @@ st.subheader("Dataset Preview")
 st.dataframe(df.head())
 
 # -----------------------------
-# DATA PREPARATION
+# SPLIT FEATURES & TARGET
 # -----------------------------
-# Change column names here IF your dataset differs
-X = df.drop("Outcome", axis=1)   # Features
-y = df["Outcome"]                # Target
+target_col = df.columns[-1]   # LAST column is target
+X = df.iloc[:, :-1]           # All except last
+y = df[target_col]
 
-# Train-test split
+# Encode target if it's text
+if y.dtype == "object":
+    encoder = LabelEncoder()
+    y = encoder.fit_transform(y)
+
+# -----------------------------
+# TRAIN TEST SPLIT
+# -----------------------------
 X_train, X_test, y_train, y_test = train_test_split(
     X, y, test_size=0.2, random_state=42
 )
 
-# Scaling
+# -----------------------------
+# SCALING
+# -----------------------------
 scaler = StandardScaler()
 X_train = scaler.fit_transform(X_train)
 X_test = scaler.transform(X_test)
 
 # -----------------------------
-# MODEL TRAINING
+# MODEL
 # -----------------------------
-model = LogisticRegression()
+model = LogisticRegression(max_iter=1000)
 model.fit(X_train, y_train)
 
 accuracy = model.score(X_test, y_test)
-
 st.success(f"Model Accuracy: {accuracy:.2f}")
 
 # -----------------------------
@@ -55,28 +62,20 @@ st.success(f"Model Accuracy: {accuracy:.2f}")
 # -----------------------------
 st.subheader("Enter Patient Details")
 
-pregnancies = st.number_input("Pregnancies", min_value=0, step=1)
-glucose = st.number_input("Glucose Level", min_value=0)
-blood_pressure = st.number_input("Blood Pressure", min_value=0)
-skin_thickness = st.number_input("Skin Thickness", min_value=0)
-insulin = st.number_input("Insulin Level", min_value=0)
-bmi = st.number_input("BMI", min_value=0.0)
-dpf = st.number_input("Diabetes Pedigree Function", min_value=0.0)
-age = st.number_input("Age", min_value=0, step=1)
+inputs = []
+for col in X.columns:
+    val = st.number_input(col, value=0.0)
+    inputs.append(val)
 
 # -----------------------------
 # PREDICTION
 # -----------------------------
 if st.button("Predict"):
-    input_data = [[
-        pregnancies, glucose, blood_pressure, skin_thickness,
-        insulin, bmi, dpf, age
-    ]]
-    
-    input_data = scaler.transform(input_data)
-    prediction = model.predict(input_data)
+    input_df = pd.DataFrame([inputs], columns=X.columns)
+    input_scaled = scaler.transform(input_df)
+    prediction = model.predict(input_scaled)[0]
 
-    if prediction[0] == 1:
-        st.error("⚠️ The patient is likely DIABETIC")
+    if prediction == 1:
+        st.error("⚠️ Diabetic")
     else:
-        st.success("✅ The patient is NOT diabetic")
+        st.success("✅ Not Diabetic")
